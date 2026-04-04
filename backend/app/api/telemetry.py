@@ -28,6 +28,42 @@ logger = logging.getLogger("telemetry")
 router = APIRouter(prefix="/api", tags=["telemetry"])
 
 
+async def process_locomotive_ingress_raw(raw: str) -> None:
+    """Дедубликация → фильтр → валидация → live_store → WS → БД (как при приёме по WS)."""
+    data = json.loads(raw)
+    loco_id = data.get("locomotive_id", "")
+
+    lf = filters.get(loco_id)
+    if lf.is_duplicate(raw):
+        return
+
+    if "telemetry" in data:
+        data["telemetry"] = lf.process_telemetry(data["telemetry"])
+
+    loco_type = data.get("type", "diesel")
+    try:
+        if loco_type == "electric":
+            packet: LocomotiveDieselIngress | LocomotiveElectricIngress = (
+                LocomotiveElectricIngress.model_validate(data)
+            )
+        else:
+            packet = LocomotiveDieselIngress.model_validate(data)
+    except ValidationError as exc:
+        logger.warning("Validation failed: %s", exc.error_count())
+        return
+
+    frontend = to_frontend_payload(packet)
+
+    live_store.update(loco_id, frontend)
+
+    await dashboard_manager.broadcast(frontend)
+
+    from app.db.database import async_session_factory
+
+    async with async_session_factory() as session:
+        await persist_locomotive_ingress(session, packet, raw)
+
+
 # ── WebSocket-приём телеметрии от локомотива ─────────────────────
 
 @router.websocket("/ws/locomotive")
@@ -43,46 +79,13 @@ async def ws_locomotive(ws: WebSocket) -> None:
         while True:
             raw = await ws.receive_text()
             try:
-                await _process_raw_packet(raw)
+                await process_locomotive_ingress_raw(raw)
             except Exception:
                 logger.exception("Error processing locomotive packet")
     except WebSocketDisconnect:
         logger.info("Locomotive WS disconnected")
     except Exception:
         logger.exception("Locomotive WS error")
-
-
-async def _process_raw_packet(raw: str) -> None:
-    """Общая логика обработки одного JSON-пакета от борта."""
-    data = json.loads(raw)
-    loco_id = data.get("locomotive_id", "")
-
-    lf = filters.get(loco_id)
-    if lf.is_duplicate(raw):
-        return
-
-    if "telemetry" in data:
-        data["telemetry"] = lf.process_telemetry(data["telemetry"])
-
-    loco_type = data.get("type", "diesel")
-    try:
-        if loco_type == "electric":
-            packet = LocomotiveElectricIngress.model_validate(data)
-        else:
-            packet = LocomotiveDieselIngress.model_validate(data)
-    except ValidationError as exc:
-        logger.warning("Validation failed: %s", exc.error_count())
-        return
-
-    frontend = to_frontend_payload(packet)
-
-    live_store.update(loco_id, frontend)
-
-    await dashboard_manager.broadcast(frontend)
-
-    from app.db.database import async_session_factory
-    async with async_session_factory() as session:
-        await persist_locomotive_ingress(session, packet, raw)
 
 
 # ── REST-приём (оставлен для совместимости / тестирования) ────────

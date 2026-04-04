@@ -10,6 +10,12 @@
 
 Бэкенд должен выдать Critical Alert:
 «ПАДЕНИЕ ДАВЛЕНИЯ ТМ! ЭКСТРЕННОЕ ТОРМОЖЕНИЕ!»
+
+При старте приложения тот же класс ``State`` использует
+``app.services.simulator.run_simulator``.
+
+CLI (из каталога backend): ``python -m scripts.scenario3_kz8a``
+или из scripts: ``python scenario3_kz8a.py``
 """
 
 from __future__ import annotations
@@ -17,7 +23,10 @@ from __future__ import annotations
 import asyncio
 import random
 
-from _base import drift, approach, ch, health_status, run
+try:
+    from ._base import drift, approach, ch, health_status, run
+except ImportError:
+    from _base import drift, approach, ch, health_status, run
 
 RUPTURE_TICK = 30
 
