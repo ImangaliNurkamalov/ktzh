@@ -20,7 +20,7 @@ router = APIRouter(tags=["dashboard"])
 async def dashboard_live() -> dict[str, Any]:
     """
     Возвращает live-снимок локомотива из памяти. o
-    Обновляется каждую секунду симулятором.
+    Обновляется каждые 0,5 с симулятором.
     """
     data = live_store.get("KZ8A-0021")
     if data is None:
@@ -83,7 +83,7 @@ async def dashboard_current(
 async def ws_dashboard(ws: WebSocket) -> None:
     """
     Фронт подключается сюда. Сразу получает текущий снимок,
-    затем каждую секунду — свежие данные из live_store.
+    затем каждые 0,5 с — свежие данные из live_store.
     Параллельно слушаем клиент, чтобы поймать disconnect.
     """
     await ws.accept()
@@ -105,7 +105,7 @@ async def ws_dashboard(ws: WebSocket) -> None:
             data = live_store.get("KZ8A-0021")
             if data:
                 await ws.send_text(json.dumps(data, default=str, ensure_ascii=False))
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
     except Exception:
         pass
     finally:

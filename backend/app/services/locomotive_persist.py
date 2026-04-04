@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,8 +47,12 @@ def common_to_record_fields(common: CommonTelemetryIngress) -> dict:
 async def persist_locomotive_ingress(
     session: AsyncSession,
     packet: LocomotiveDieselIngress | LocomotiveElectricIngress,
-    frontend_dict: dict,
+    raw_ingress_json: str,
 ) -> TelemetryRecord:
+    """
+    Сохраняет каждую принятую запись. raw_payload — JSON как от локомотива (не контракт фронта).
+    Скалярные поля — из уже провалидированного пакета (после фильтрации каналов).
+    """
     common = packet.telemetry.common
     fields = common_to_record_fields(common)
     ts = packet.timestamp or datetime.now(timezone.utc)
@@ -66,7 +69,7 @@ async def persist_locomotive_ingress(
         lng=0.0,
         health_score=packet.health.index,
         health_status=status,
-        raw_payload=json.dumps(frontend_dict, ensure_ascii=False, default=str),
+        raw_payload=raw_ingress_json,
         **fields,
     )
     session.add(record)

@@ -82,7 +82,7 @@ async def _process_raw_packet(raw: str) -> None:
 
     from app.db.database import async_session_factory
     async with async_session_factory() as session:
-        await persist_locomotive_ingress(session, packet, frontend)
+        await persist_locomotive_ingress(session, packet, raw)
 
 
 # ── REST-приём (оставлен для совместимости / тестирования) ────────
@@ -95,10 +95,10 @@ async def ingest_locomotive_telemetry(
     packet: LocomotiveDieselIngress | LocomotiveElectricIngress,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    raw_json = packet.model_dump_json()
+    raw_ingress_json = packet.model_dump_json()
     lf = filters.get(packet.locomotive_id)
 
-    if lf.is_duplicate(raw_json):
+    if lf.is_duplicate(raw_ingress_json):
         return {"status": "duplicate"}
 
     telemetry_dict = packet.telemetry.model_dump()
@@ -115,7 +115,7 @@ async def ingest_locomotive_telemetry(
 
     frontend = to_frontend_payload(packet)
     live_store.update(packet.locomotive_id, frontend)
-    record = await persist_locomotive_ingress(session, packet, frontend)
+    record = await persist_locomotive_ingress(session, packet, raw_ingress_json)
     await dashboard_manager.broadcast(frontend)
     return {"status": "ok", "record_id": record.id}
 

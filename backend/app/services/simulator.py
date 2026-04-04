@@ -1,17 +1,21 @@
 """
 Фоновый симулятор телеметрии. Запускается при старте приложения,
-каждую секунду генерирует реалистично дрейфующие данные для
+каждые 0,5 с генерирует реалистично дрейфующие данные для
 электровоза KZ8A-0021 и обновляет live_store + рассылает по WS.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import random
 from typing import Any
 
 from app.core.live_store import live_store
 from app.core.ws_manager import dashboard_manager
+
+logger = logging.getLogger("simulator")
 
 
 def _drift(current: float, target: float, step: float, lo: float, hi: float) -> float:
@@ -126,6 +130,20 @@ class LocoState:
 _state: LocoState | None = None
 
 
+async def _persist_payload(payload: dict[str, Any]) -> None:
+    from app.db.database import async_session_factory
+    from app.schemas.locomotive_ingress import LocomotiveElectricIngress
+    from app.services.locomotive_persist import persist_locomotive_ingress
+
+    try:
+        raw_json = json.dumps(payload, ensure_ascii=False, default=str)
+        packet = LocomotiveElectricIngress.model_validate(payload)
+        async with async_session_factory() as session:
+            await persist_locomotive_ingress(session, packet, raw_json)
+    except Exception:
+        logger.exception("Simulator persist failed")
+
+
 async def run_simulator() -> None:
     global _state
     _state = LocoState(LOCOMOTIVE_CFG)
@@ -134,4 +152,5 @@ async def run_simulator() -> None:
         payload = _state.tick()
         live_store.update(LOCOMOTIVE_CFG["locomotive_id"], payload)
         await dashboard_manager.broadcast(payload)
-        await asyncio.sleep(1)
+        await _persist_payload(payload)
+        await asyncio.sleep(0.5)
