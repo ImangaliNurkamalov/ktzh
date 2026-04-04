@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import random
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.live_store import live_store
@@ -90,6 +91,7 @@ class LocoState:
         self.transformer_temp = _drift(self.transformer_temp, 75, 0.8, 50, 100)
 
         return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "locomotive_id": self.cfg["locomotive_id"],
             "type": self.cfg["type"],
             "health": {"index": self.health_index, "status": status},
