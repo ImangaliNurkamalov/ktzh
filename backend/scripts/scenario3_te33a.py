@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import random
 
-from _base import drift, approach, ch, health_status, run
+from _base import drift, approach, ch, run
 
 RUPTURE_TICK = 30
 
@@ -67,7 +67,6 @@ class State:
         return {
             "locomotive_id": "TE33A-0154",
             "type": "diesel",
-            "health": {"index": self.hp, "status": health_status(self.hp)},
             "route_map": {
                 "next_point": "Караганда",
                 "end_point": "Алматы",

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from app.schemas.locomotive_ingress import LocomotiveDieselIngress, LocomotiveElectricIngress
+from app.schemas.locomotive_ingress import (
+    HealthIngress,
+    LocomotiveDieselIngress,
+    LocomotiveElectricIngress,
+)
 
 
 def normalize_health_status(raw: str) -> Literal["norm", "warning", "critical"]:
@@ -18,18 +22,20 @@ def normalize_health_status(raw: str) -> Literal["norm", "warning", "critical"]:
 
 def to_frontend_payload(
     packet: LocomotiveDieselIngress | LocomotiveElectricIngress,
+    health: HealthIngress,
 ) -> dict[str, Any]:
     """
     Урезает маршрут до полей UI, нормализует статус здоровья, телеметрию
     оставляет в том же виде { value, state }.
+    ``health`` всегда вычислен на бэкенде.
     """
     rm = packet.route_map
     return {
         "locomotive_id": packet.locomotive_id,
         "type": packet.type,
         "health": {
-            "index": packet.health.index,
-            "status": normalize_health_status(packet.health.status),
+            "index": health.index,
+            "status": normalize_health_status(health.status),
         },
         "route_map": {
             "next_point": rm.next_point,

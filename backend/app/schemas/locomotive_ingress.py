@@ -3,28 +3,36 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TelemetryChannel(BaseModel):
     """Параметр в формате бортовой системы: значение + код состояния."""
+
+    model_config = ConfigDict(extra="forbid")
 
     value: float | int | bool | str
     state: int = 0
 
 
 class BrakesIngress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     tm_pressure: TelemetryChannel
     gr_pressure: TelemetryChannel
     tc_pressure: TelemetryChannel
 
 
 class TemperaturesIngress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     bearings_max: TelemetryChannel
     cabin: TelemetryChannel
 
 
 class CommonTelemetryIngress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     speed_actual: TelemetryChannel
     speed_target: TelemetryChannel
     traction_force_kn: TelemetryChannel
@@ -35,6 +43,8 @@ class CommonTelemetryIngress(BaseModel):
 
 
 class DieselPowerIngress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     diesel_rpm: TelemetryChannel
     fuel_level_percent: TelemetryChannel
     fuel_consumption_lh: TelemetryChannel
@@ -44,6 +54,8 @@ class DieselPowerIngress(BaseModel):
 
 
 class ElectricPowerIngress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     catenary_voltage_kv: TelemetryChannel
     pantograph_status: TelemetryChannel
     traction_current_a: TelemetryChannel
@@ -51,21 +63,29 @@ class ElectricPowerIngress(BaseModel):
 
 
 class DieselTelemetryIngress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     common: CommonTelemetryIngress
     power_system: DieselPowerIngress
 
 
 class ElectricTelemetryIngress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     common: CommonTelemetryIngress
     power_system: ElectricPowerIngress
 
 
 class HealthIngress(BaseModel):
+    """Только после расчёта на бэкенде; с борта не приходит."""
+
     index: int
     status: str
 
 
 class RouteMapIngress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     initial_point: str | None = None
     last_point: str | None = None
     next_point: str
@@ -78,19 +98,25 @@ class RouteMapIngress(BaseModel):
 
 
 class LocomotiveDieselIngress(BaseModel):
+    """Вход с борта: без ``health`` (лишние поля запрещены)."""
+
+    model_config = ConfigDict(extra="forbid")
+
     timestamp: datetime | None = None
     locomotive_id: str
     type: Literal["diesel"] = "diesel"
-    health: HealthIngress
     route_map: RouteMapIngress
     telemetry: DieselTelemetryIngress
 
 
 class LocomotiveElectricIngress(BaseModel):
+    """Вход с борта: без ``health`` (лишние поля запрещены)."""
+
+    model_config = ConfigDict(extra="forbid")
+
     timestamp: datetime | None = None
     locomotive_id: str
     type: Literal["electric"] = "electric"
-    health: HealthIngress
     route_map: RouteMapIngress
     telemetry: ElectricTelemetryIngress
 

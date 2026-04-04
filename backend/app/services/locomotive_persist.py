@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import TelemetryRecord
 from app.schemas.locomotive_ingress import (
     CommonTelemetryIngress,
+    HealthIngress,
     LocomotiveDieselIngress,
     LocomotiveElectricIngress,
 )
@@ -48,10 +49,11 @@ async def persist_locomotive_ingress(
     session: AsyncSession,
     packet: LocomotiveDieselIngress | LocomotiveElectricIngress,
     raw_ingress_json: str,
+    health: HealthIngress,
 ) -> TelemetryRecord:
     """
-    Сохраняет каждую принятую запись. raw_payload — JSON как от локомотива (не контракт фронта).
-    Скалярные поля — из уже провалидированного пакета (после фильтрации каналов).
+    Сохраняет запись. ``health`` — результат расчёта на бэкенде.
+    ``raw_ingress_json`` — JSON как от борта (без health).
     """
     common = packet.telemetry.common
     fields = common_to_record_fields(common)
@@ -59,7 +61,7 @@ async def persist_locomotive_ingress(
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
 
-    status = normalize_health_status(packet.health.status)
+    status = normalize_health_status(health.status)
 
     record = TelemetryRecord(
         timestamp=ts,
@@ -67,7 +69,7 @@ async def persist_locomotive_ingress(
         locomotive_type=packet.type,
         lat=0.0,
         lng=0.0,
-        health_score=packet.health.index,
+        health_score=health.index,
         health_status=status,
         raw_payload=raw_ingress_json,
         **fields,

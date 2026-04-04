@@ -2,7 +2,7 @@
 Фоновый цикл телеметрии при старте приложения.
 
 Данные берутся из ``scripts/scenario3_kz8a.State``; обработка — через
-``process_locomotive_ingress_raw`` (тот же путь, что и для WebSocket-борта).
+``locomotive_pipeline.process_locomotive_ingress_raw`` (тот же путь, что и для WebSocket-борта).
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ TICK_SEC = 1.0
 async def run_simulator() -> None:
     scenario_mod = importlib.import_module("scripts.scenario3_kz8a")
     State = scenario_mod.State
-    telemetry_api = importlib.import_module("app.api.telemetry")
-    process_raw = telemetry_api.process_locomotive_ingress_raw
+    pipeline = importlib.import_module("app.services.locomotive_pipeline")
+    process_raw = pipeline.process_locomotive_ingress_raw
 
     state = State()
     t = 0

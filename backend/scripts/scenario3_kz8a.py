@@ -12,7 +12,8 @@
 «ПАДЕНИЕ ДАВЛЕНИЯ ТМ! ЭКСТРЕННОЕ ТОРМОЖЕНИЕ!»
 
 При старте приложения тот же класс ``State`` использует
-``app.services.simulator.run_simulator``.
+``app.services.simulator.run_simulator``. В JSON нет ``health`` — его считает
+``app.services.locomotive_pipeline``.
 
 CLI (из каталога backend): ``python -m scripts.scenario3_kz8a``
 или из scripts: ``python scenario3_kz8a.py``
@@ -24,9 +25,9 @@ import asyncio
 import random
 
 try:
-    from ._base import drift, approach, ch, health_status, run
+    from ._base import drift, approach, ch, run
 except ImportError:
-    from _base import drift, approach, ch, health_status, run
+    from _base import drift, approach, ch, run
 
 RUPTURE_TICK = 30
 
@@ -71,7 +72,6 @@ class State:
         return {
             "locomotive_id": "KZ8A-0021",
             "type": "electric",
-            "health": {"index": self.hp, "status": health_status(self.hp)},
             "route_map": {
                 "next_point": "Шу",
                 "end_point": "Алматы",
