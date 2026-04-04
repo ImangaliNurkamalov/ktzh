@@ -19,7 +19,7 @@ router = APIRouter(tags=["dashboard"])
 @router.get("/api/dashboard")
 async def dashboard_live() -> dict[str, Any]:
     """
-    Возвращает live-снимок локомотива из памяти.
+    Возвращает live-снимок локомотива из памяти. o
     Обновляется каждую секунду симулятором.
     """
     data = live_store.get("KZ8A-0021")
