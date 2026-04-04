@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --cabin-bg: #f1f5f9;
+    --cabin-surface: #ffffff;
+    --cabin-border: #cbd5e1;
+    --cabin-gradient-to: #e8eef5;
+    --cabin-card-shade: #eef2f7;
+    --cabin-track-schematic-bg: #e2e8f0;
+  }
+  .dark {
+    --cabin-bg: #0c0e14;
+    --cabin-surface: #13161f;
+    --cabin-border: #252a38;
+    --cabin-gradient-to: #0f1219;
+    --cabin-card-shade: #0e1018;
+    --cabin-track-schematic-bg: #080a10;
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply m-0 min-h-dvh;
+  }
+  #root {
+    @apply min-h-dvh;
+  }
+}
