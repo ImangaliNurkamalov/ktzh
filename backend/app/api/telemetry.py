@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import rabbitmq as rabbitmq_broker
 from app.core.live_store import live_store
 from app.core.ws_manager import dashboard_manager
 from app.db.database import get_session
@@ -34,8 +35,8 @@ router = APIRouter(prefix="/api", tags=["telemetry"])
 async def ws_locomotive(ws: WebSocket) -> None:
     """
     Борт подключается сюда и шлёт JSON-пакеты.
-    Каждый пакет: дедубликация → валидация → EMA/медиана → transform →
-    live_store + broadcast фронту + persist в БД.
+    При включённом RABBITMQ_URL пакет кладётся в очередь `locomotive.telemetry`;
+    иначе сразу: дедубликация → фильтры → transform → live_store + WS + БД.
     """
     await ws.accept()
     logger.info("Locomotive WS connected")
@@ -43,7 +44,10 @@ async def ws_locomotive(ws: WebSocket) -> None:
         while True:
             raw = await ws.receive_text()
             try:
-                await _process_raw_packet(raw)
+                if rabbitmq_broker.enabled():
+                    await rabbitmq_broker.publish_telemetry_raw(raw)
+                else:
+                    await _process_raw_packet(raw)
             except Exception:
                 logger.exception("Error processing locomotive packet")
     except WebSocketDisconnect:
@@ -89,7 +93,7 @@ async def _process_raw_packet(raw: str) -> None:
 
 @router.post(
     "/locomotive/telemetry",
-    summary="Телеметрия от борта (value/state) → фронт + WebSocket (REST fallback)",
+    summary="Телеметрия от борта; при RabbitMQ — в очередь (ответ queued), иначе сразу в БД",
 )
 async def ingest_locomotive_telemetry(
     packet: LocomotiveDieselIngress | LocomotiveElectricIngress,
@@ -100,6 +104,10 @@ async def ingest_locomotive_telemetry(
 
     if lf.is_duplicate(raw_ingress_json):
         return {"status": "duplicate"}
+
+    if rabbitmq_broker.enabled():
+        await rabbitmq_broker.publish_telemetry_raw(raw_ingress_json)
+        return {"status": "queued"}
 
     telemetry_dict = packet.telemetry.model_dump()
     filtered_telemetry = lf.process_telemetry(telemetry_dict)

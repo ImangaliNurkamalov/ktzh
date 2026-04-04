@@ -1,135 +1,198 @@
 """
-Фоновый симулятор телеметрии. Запускается при старте приложения,
-каждые 0,5 с генерирует реалистично дрейфующие данные для
-электровоза KZ8A-0021 и обновляет live_store + рассылает по WS.
+Фоновый симулятор телеметрии (сценарий 3 · KZ8A «Реальная угроза»).
+
+Запускается при старте приложения.
+Первые 30 тиков — штатный крейсерский режим (90 км/ч).
+На 31-м тике происходит разрыв тормозного шланга:
+  • tm_pressure резко падает 5.0 → 1.5
+  • tc_pressure подскакивает 0.0 → 4.0 (экстренное торможение)
+  • Тяга отключается, скорость падает до нуля
+
+Стресс-режим (SIMULATOR_INGEST_BURST>1): за один логический тик шлётся N параллельных
+HTTP POST на /api/locomotive/telemetry (по умолчанию N=10). Для обычной работы задайте
+SIMULATOR_INGEST_BURST=1.
 """
 
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import httpx
+
+from app.core import rabbitmq as rabbitmq_broker
+from app.core.config import settings
 from app.core.live_store import live_store
 from app.core.ws_manager import dashboard_manager
 
 logger = logging.getLogger("simulator")
 
-
-def _drift(current: float, target: float, step: float, lo: float, hi: float) -> float:
-    delta = random.uniform(-step, step)
-    pull = (target - current) * 0.05
-    return round(max(lo, min(hi, current + delta + pull)), 2)
+RUPTURE_TICK = 30
+LOCOMOTIVE_ID = "KZ8A-0021"
 
 
-def _drift_int(current: int, target: int, step: int, lo: int, hi: int) -> int:
-    delta = random.randint(-step, step)
-    pull = round((target - current) * 0.05)
-    return max(lo, min(hi, current + delta + pull))
+def _drift(cur: float, tgt: float, noise: float, lo: float, hi: float) -> float:
+    delta = random.uniform(-noise, noise)
+    pull = (tgt - cur) * 0.08
+    return round(max(lo, min(hi, cur + delta + pull)), 2)
 
 
-LOCOMOTIVE_CFG: dict[str, Any] = {
-    "locomotive_id": "KZ8A-0021",
-    "type": "electric",
-    "route": {
-        "next_point": "Шу",
-        "end_point": "Алматы",
-        "distance_to_next_km": 150.0,
-        "total_distance_left_km": 350.0,
-    },
-}
+def _approach(cur: float, tgt: float, rate: float) -> float:
+    if abs(cur - tgt) <= rate:
+        return round(tgt, 2)
+    return round(cur + rate, 2) if cur < tgt else round(cur - rate, 2)
 
 
-class LocoState:
-    def __init__(self, cfg: dict[str, Any]) -> None:
-        self.cfg = cfg
-        self.speed_actual = 90.0
-        self.speed_target = 90.0
-        self.traction_force = 450.0
-        self.tm_pressure = 5.0
-        self.gr_pressure = 9.0
-        self.tc_pressure = 0.0
-        self.bearings_max = 58.4
-        self.cabin = 21.5
-        self.board_voltage = 110.0
-        self.health_index = 95
-        self.dist_next = cfg["route"]["distance_to_next_km"]
-        self.dist_total = cfg["route"]["total_distance_left_km"]
-        self.eta_next = int(self.dist_next / max(self.speed_actual, 1) * 60)
-        self.catenary_kv = 27.2
-        self.traction_current = 480.0
-        self.transformer_temp = 75.0
+def _ch(value: Any, state: int = 0) -> dict:
+    if isinstance(value, float):
+        value = round(value, 2)
+    return {"value": value, "state": state}
 
-    def tick(self) -> dict[str, Any]:
-        self.speed_actual = _drift(self.speed_actual, self.speed_target, 2.0, 0, 160)
-        self.traction_force = _drift(self.traction_force, 450, 10, 0, 800)
-        self.tm_pressure = _drift(self.tm_pressure, 5.0, 0.15, 3.0, 7.0)
-        self.gr_pressure = _drift(self.gr_pressure, 9.0, 0.1, 7.0, 10.0)
-        self.tc_pressure = _drift(self.tc_pressure, 0.0, 0.05, 0.0, 3.0)
-        self.bearings_max = _drift(self.bearings_max, 58.0, 0.5, 40.0, 90.0)
-        self.cabin = _drift(self.cabin, 22.0, 0.2, 18.0, 30.0)
-        self.board_voltage = _drift(self.board_voltage, 110.0, 0.5, 100, 120)
 
-        km_per_sec = self.speed_actual / 3600
-        self.dist_next = max(0, round(self.dist_next - km_per_sec, 2))
-        self.dist_total = max(0, round(self.dist_total - km_per_sec, 2))
-        self.eta_next = max(0, int(self.dist_next / max(self.speed_actual, 1) * 60))
+def _health_status(idx: int) -> str:
+    if idx >= 85:
+        return "norm"
+    if idx >= 60:
+        return "warning"
+    return "critical"
 
-        self.health_index = _drift_int(self.health_index, 92, 1, 60, 100)
-        if self.health_index >= 85:
-            status = "norm"
-        elif self.health_index >= 60:
-            status = "warning"
+
+class ScenarioState:
+    """Сценарий 3 · KZ8A — обрыв тормозной магистрали."""
+
+    def __init__(self) -> None:
+        self.spd_tgt = 90.0
+        self.spd = 90.0
+        self.traction = 130.0
+        self.tm = 5.1
+        self.gr = 8.7
+        self.tc = 0.0
+        self.bearings = 60.0
+        self.cabin = 22.0
+        self.bv = 110.0
+        self.cat_kv = 27.0
+        self.traction_a = 220.0
+        self.trans_t = 70.0
+        self.hp = 95
+        self.d_next = 150.0
+        self.d_total = 350.0
+        self._phase = "CRUISE"
+
+    def tick(self, t: int) -> dict[str, Any]:
+        if t <= RUPTURE_TICK:
+            self._tick_cruise()
+        elif self.spd > 0.5:
+            self._tick_rupture()
         else:
-            status = "critical"
+            self._tick_standstill()
 
-        self.catenary_kv = _drift(self.catenary_kv, 27.5, 0.3, 24.0, 30.0)
-        self.traction_current = _drift(self.traction_current, 480, 15, 200, 700)
-        self.transformer_temp = _drift(self.transformer_temp, 75, 0.8, 50, 100)
+        km_s = self.spd / 3600
+        self.d_next = max(0, round(self.d_next - km_s, 2))
+        self.d_total = max(0, round(self.d_total - km_s, 2))
+        eta = int(self.d_next / max(self.spd, 1) * 60)
+
+        tm_state = 0
+        if self.tm < 3.5:
+            tm_state = 2 if self.tm < 2.0 else 1
+        tc_state = 1 if self.tc > 2.5 else 0
 
         return {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "locomotive_id": self.cfg["locomotive_id"],
-            "type": self.cfg["type"],
-            "health": {"index": self.health_index, "status": status},
+            "locomotive_id": LOCOMOTIVE_ID,
+            "type": "electric",
+            "health": {"index": self.hp, "status": _health_status(self.hp)},
             "route_map": {
-                "next_point": self.cfg["route"]["next_point"],
-                "end_point": self.cfg["route"]["end_point"],
-                "distance_to_next_km": self.dist_next,
-                "eta_next_minutes": self.eta_next,
-                "total_distance_left_km": self.dist_total,
+                "next_point": "Шу",
+                "end_point": "Алматы",
+                "distance_to_next_km": self.d_next,
+                "eta_next_minutes": eta,
+                "total_distance_left_km": self.d_total,
             },
             "telemetry": {
                 "common": {
-                    "speed_actual": {"value": self.speed_actual, "state": 0},
-                    "speed_target": {"value": self.speed_target, "state": 0},
-                    "traction_force_kn": {"value": self.traction_force, "state": 0},
-                    "wheel_slip": {"value": False, "state": 0},
+                    "speed_actual": _ch(self.spd),
+                    "speed_target": _ch(self.spd_tgt),
+                    "traction_force_kn": _ch(self.traction),
+                    "wheel_slip": _ch(False),
                     "brakes": {
-                        "tm_pressure": {"value": self.tm_pressure, "state": 0},
-                        "gr_pressure": {"value": self.gr_pressure, "state": 0},
-                        "tc_pressure": {"value": self.tc_pressure, "state": 0},
+                        "tm_pressure": _ch(self.tm, tm_state),
+                        "gr_pressure": _ch(self.gr),
+                        "tc_pressure": _ch(self.tc, tc_state),
                     },
                     "temperatures": {
-                        "bearings_max": {"value": self.bearings_max, "state": 0},
-                        "cabin": {"value": self.cabin, "state": 0},
+                        "bearings_max": _ch(self.bearings),
+                        "cabin": _ch(self.cabin),
                     },
-                    "board_voltage": {"value": self.board_voltage, "state": 0},
+                    "board_voltage": _ch(self.bv),
                 },
                 "power_system": {
-                    "catenary_voltage_kv": {"value": self.catenary_kv, "state": 0},
-                    "pantograph_status": {"value": "raised", "state": 0},
-                    "traction_current_a": {"value": self.traction_current, "state": 0},
-                    "transformer_temp": {"value": self.transformer_temp, "state": int(self.transformer_temp > 80)},
+                    "catenary_voltage_kv": _ch(self.cat_kv),
+                    "pantograph_status": _ch("raised"),
+                    "traction_current_a": _ch(self.traction_a),
+                    "transformer_temp": _ch(self.trans_t),
                 },
             },
         }
 
+    def _tick_cruise(self) -> None:
+        self._phase = "CRUISE"
+        self.spd = _drift(self.spd, self.spd_tgt, 1.5, 80, 100)
+        self.traction = _drift(self.traction, 130, 15, 80, 180)
+        self.tm = _drift(self.tm, 5.1, 0.05, 5.0, 5.2)
+        self.gr = _drift(self.gr, 8.7, 0.1, 8.5, 9.0)
+        self.tc = _drift(self.tc, 0.0, 0.02, 0.0, 0.1)
+        self.bearings = _drift(self.bearings, 60.0, 0.5, 55, 65)
+        self.cabin = _drift(self.cabin, 22.0, 0.2, 20, 24)
+        self.bv = _drift(self.bv, 110, 0.3, 108, 112)
+        self.cat_kv = _drift(self.cat_kv, 27.0, 0.1, 26.8, 27.2)
+        self.traction_a = _drift(self.traction_a, 220, 15, 150, 300)
+        self.trans_t = _drift(self.trans_t, 70, 0.8, 65, 75)
+        self.hp = max(85, min(100, self.hp + random.randint(-1, 1)))
 
-_state: LocoState | None = None
+    def _tick_rupture(self) -> None:
+        self._phase = "!! RUPTURE"
+        self.tm = _approach(self.tm, 1.5, random.uniform(0.4, 0.6))
+        self.tc = _approach(self.tc, 4.0, random.uniform(0.5, 0.7))
+        self.gr = _drift(self.gr, 8.5, 0.1, 8.0, 9.0)
+        self.traction = _approach(self.traction, 0, 25)
+        self.traction_a = _approach(self.traction_a, 0, random.uniform(25, 40))
+        self.cat_kv = _approach(self.cat_kv, 27.3, 0.1)
+        self.trans_t = _approach(self.trans_t, 55, 0.5)
+        self.spd = max(0, round(self.spd - random.uniform(2.0, 3.5), 2))
+        self.bearings = _drift(self.bearings, 58, 0.5, 50, 70)
+        self.cabin = _drift(self.cabin, 22.0, 0.2, 20, 24)
+        self.bv = _drift(self.bv, 110, 0.5, 106, 114)
+        self.hp = max(30, self.hp - random.randint(3, 6))
+
+    def _tick_standstill(self) -> None:
+        self._phase = "STOP"
+        self.spd = 0.0
+        self.traction = 0.0
+        self.traction_a = _drift(self.traction_a, 30, 5, 0, 50)
+        self.tm = _drift(self.tm, 1.5, 0.05, 1.0, 2.0)
+        self.tc = _drift(self.tc, 4.0, 0.05, 3.5, 4.5)
+        self.gr = _drift(self.gr, 8.5, 0.1, 8.0, 9.0)
+        self.cat_kv = _drift(self.cat_kv, 27.3, 0.1, 27.0, 27.5)
+        self.trans_t = _approach(self.trans_t, 45, 0.3)
+        self.bearings = _approach(self.bearings, 30, 0.3)
+        self.cabin = _drift(self.cabin, 22.0, 0.2, 20, 24)
+        self.bv = _drift(self.bv, 110, 0.3, 108, 112)
+        self.hp = max(30, min(50, self.hp + random.randint(-1, 0)))
+
+    def log(self, _t: int) -> str:
+        return (
+            f"{self._phase:12s}  spd={self.spd:5.1f}  "
+            f"tm={self.tm:.1f}  tc={self.tc:.1f}  "
+            f"cur={self.traction_a:.0f}A  hp={self.hp}"
+        )
+
+
+_state: ScenarioState | None = None
 
 
 async def _persist_payload(payload: dict[str, Any]) -> None:
@@ -146,13 +209,51 @@ async def _persist_payload(payload: dict[str, Any]) -> None:
         logger.exception("Simulator persist failed")
 
 
+def _payload_with_offset_ts(base: dict[str, Any], micro_offset: int) -> dict[str, Any]:
+    """Копия пакета с уникальным timestamp (иначе дедуп по MD5 за 0.5 с отбросит дубликаты)."""
+    p = copy.deepcopy(base)
+    p["timestamp"] = (datetime.now(timezone.utc) + timedelta(microseconds=micro_offset)).isoformat()
+    return p
+
+
+async def _stress_ingest_burst(client: httpx.AsyncClient, base_payload: dict[str, Any], n: int) -> None:
+    url = f"{settings.SIMULATOR_BASE_URL.rstrip('/')}/api/locomotive/telemetry"
+
+    async def post_one(i: int) -> None:
+        body = _payload_with_offset_ts(base_payload, i)
+        r = await client.post(url, json=body)
+        r.raise_for_status()
+
+    await asyncio.gather(*(post_one(i) for i in range(n)))
+
+
 async def run_simulator() -> None:
     global _state
-    _state = LocoState(LOCOMOTIVE_CFG)
+    _state = ScenarioState()
+    tick = 0
+    burst = max(1, settings.SIMULATOR_INGEST_BURST)
+
+    if burst > 1:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+            while True:
+                tick += 1
+                payload = _state.tick(tick)
+                logger.info("tick #%d | stress burst=%d | %s", tick, burst, _state.log(tick))
+                try:
+                    await _stress_ingest_burst(client, payload, burst)
+                except Exception:
+                    logger.exception("Stress ingest burst failed (tick %d)", tick)
+                await asyncio.sleep(1.0)
 
     while True:
-        payload = _state.tick()
-        live_store.update(LOCOMOTIVE_CFG["locomotive_id"], payload)
-        await dashboard_manager.broadcast(payload)
-        await _persist_payload(payload)
-        await asyncio.sleep(0.5)
+        tick += 1
+        payload = _state.tick(tick)
+        logger.info("tick #%d | %s", tick, _state.log(tick))
+        if rabbitmq_broker.enabled():
+            raw = json.dumps(payload, ensure_ascii=False, default=str)
+            await rabbitmq_broker.publish_telemetry_raw(raw)
+        else:
+            live_store.update(LOCOMOTIVE_ID, payload)
+            await dashboard_manager.broadcast(payload)
+            await _persist_payload(payload)
+        await asyncio.sleep(1.0)
