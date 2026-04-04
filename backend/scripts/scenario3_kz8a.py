@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import random
 
-from _base import drift, approach, ch, health_status, run
+from _base import drift, approach, ch, run
 
 RUPTURE_TICK = 30
 
@@ -36,7 +36,6 @@ class State:
         self.cat_kv = 27.0
         self.traction_a = 220.0
         self.trans_t = 70.0
-        self.hp = 95
         self.d_next = 150.0
         self.d_total = 350.0
         self._phase = "CRUISE"
@@ -62,7 +61,6 @@ class State:
         return {
             "locomotive_id": "KZ8A-0021",
             "type": "electric",
-            "health": {"index": self.hp, "status": health_status(self.hp)},
             "route_map": {
                 "next_point": "Шу",
                 "end_point": "Алматы",
@@ -111,7 +109,6 @@ class State:
         self.cat_kv = drift(self.cat_kv, 27.0, 0.1, 26.8, 27.2)
         self.traction_a = drift(self.traction_a, 220, 15, 150, 300)
         self.trans_t = drift(self.trans_t, 70, 0.8, 65, 75)
-        self.hp = max(85, min(100, self.hp + random.randint(-1, 1)))
 
     def _tick_rupture(self) -> None:
         self._phase = "!! RUPTURE"
@@ -126,7 +123,6 @@ class State:
         self.bearings = drift(self.bearings, 58, 0.5, 50, 70)
         self.cabin = drift(self.cabin, 22.0, 0.2, 20, 24)
         self.bv = drift(self.bv, 110, 0.5, 106, 114)
-        self.hp = max(30, self.hp - random.randint(3, 6))
 
     def _tick_standstill(self) -> None:
         self._phase = "STOP"
@@ -141,13 +137,12 @@ class State:
         self.bearings = approach(self.bearings, 30, 0.3)
         self.cabin = drift(self.cabin, 22.0, 0.2, 20, 24)
         self.bv = drift(self.bv, 110, 0.3, 108, 112)
-        self.hp = max(30, min(50, self.hp + random.randint(-1, 0)))
 
     def log(self, _t: int) -> str:
         return (
             f"{self._phase:12s}  spd={self.spd:5.1f}  "
             f"tm={self.tm:.1f}  tc={self.tc:.1f}  "
-            f"cur={self.traction_a:.0f}A  hp={self.hp}"
+            f"cur={self.traction_a:.0f}A"
         )
 
 

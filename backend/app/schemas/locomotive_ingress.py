@@ -60,11 +60,6 @@ class ElectricTelemetryIngress(BaseModel):
     power_system: ElectricPowerIngress
 
 
-class HealthIngress(BaseModel):
-    index: int
-    status: str
-
-
 class RouteMapIngress(BaseModel):
     initial_point: str | None = None
     last_point: str | None = None
@@ -81,7 +76,6 @@ class LocomotiveDieselIngress(BaseModel):
     timestamp: datetime | None = None
     locomotive_id: str
     type: Literal["diesel"] = "diesel"
-    health: HealthIngress
     route_map: RouteMapIngress
     telemetry: DieselTelemetryIngress
 
@@ -90,7 +84,6 @@ class LocomotiveElectricIngress(BaseModel):
     timestamp: datetime | None = None
     locomotive_id: str
     type: Literal["electric"] = "electric"
-    health: HealthIngress
     route_map: RouteMapIngress
     telemetry: ElectricTelemetryIngress
 

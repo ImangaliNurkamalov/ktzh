@@ -48,10 +48,14 @@ async def persist_locomotive_ingress(
     session: AsyncSession,
     packet: LocomotiveDieselIngress | LocomotiveElectricIngress,
     raw_ingress_json: str,
+    *,
+    health_index: int,
+    health_status_raw: str,
 ) -> TelemetryRecord:
     """
     Сохраняет каждую принятую запись. raw_payload — JSON как от локомотива (не контракт фронта).
     Скалярные поля — из уже провалидированного пакета (после фильтрации каналов).
+    health_index / health_status_raw — с бэкенда (compute_health_from_ingress), не с борта.
     """
     common = packet.telemetry.common
     fields = common_to_record_fields(common)
@@ -59,7 +63,7 @@ async def persist_locomotive_ingress(
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
 
-    status = normalize_health_status(packet.health.status)
+    status = normalize_health_status(health_status_raw)
 
     record = TelemetryRecord(
         timestamp=ts,
@@ -67,7 +71,7 @@ async def persist_locomotive_ingress(
         locomotive_type=packet.type,
         lat=0.0,
         lng=0.0,
-        health_score=packet.health.index,
+        health_score=health_index,
         health_status=status,
         raw_payload=raw_ingress_json,
         **fields,

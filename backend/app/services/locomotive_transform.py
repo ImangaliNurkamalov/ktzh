@@ -18,18 +18,21 @@ def normalize_health_status(raw: str) -> Literal["norm", "warning", "critical"]:
 
 def to_frontend_payload(
     packet: LocomotiveDieselIngress | LocomotiveElectricIngress,
+    *,
+    health_index: int,
+    health_status: str,
 ) -> dict[str, Any]:
     """
-    Урезает маршрут до полей UI, нормализует статус здоровья, телеметрию
-    оставляет в том же виде { value, state }.
+    Урезает маршрут до полей UI. Индекс здоровья считается на бэкенде и передаётся сюда.
+    health_status: normal | warning | critical (для фронта нормализуется в norm).
     """
     rm = packet.route_map
     return {
         "locomotive_id": packet.locomotive_id,
         "type": packet.type,
         "health": {
-            "index": packet.health.index,
-            "status": normalize_health_status(packet.health.status),
+            "index": health_index,
+            "status": normalize_health_status(health_status),
         },
         "route_map": {
             "next_point": rm.next_point,

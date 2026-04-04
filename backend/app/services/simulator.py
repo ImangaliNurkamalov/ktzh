@@ -25,10 +25,10 @@ from typing import Any
 
 import httpx
 
+from app.api.telemetry import finalize_locomotive_ingress_packet
 from app.core import rabbitmq as rabbitmq_broker
 from app.core.config import settings
-from app.core.live_store import live_store
-from app.core.ws_manager import dashboard_manager
+from app.schemas.locomotive_ingress import LocomotiveElectricIngress
 
 logger = logging.getLogger("simulator")
 
@@ -54,14 +54,6 @@ def _ch(value: Any, state: int = 0) -> dict:
     return {"value": value, "state": state}
 
 
-def _health_status(idx: int) -> str:
-    if idx >= 85:
-        return "norm"
-    if idx >= 60:
-        return "warning"
-    return "critical"
-
-
 class ScenarioState:
     """Сценарий 3 · KZ8A — обрыв тормозной магистрали."""
 
@@ -78,7 +70,6 @@ class ScenarioState:
         self.cat_kv = 27.0
         self.traction_a = 220.0
         self.trans_t = 70.0
-        self.hp = 95
         self.d_next = 150.0
         self.d_total = 350.0
         self._phase = "CRUISE"
@@ -105,7 +96,6 @@ class ScenarioState:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "locomotive_id": LOCOMOTIVE_ID,
             "type": "electric",
-            "health": {"index": self.hp, "status": _health_status(self.hp)},
             "route_map": {
                 "next_point": "Шу",
                 "end_point": "Алматы",
@@ -152,7 +142,6 @@ class ScenarioState:
         self.cat_kv = _drift(self.cat_kv, 27.0, 0.1, 26.8, 27.2)
         self.traction_a = _drift(self.traction_a, 220, 15, 150, 300)
         self.trans_t = _drift(self.trans_t, 70, 0.8, 65, 75)
-        self.hp = max(85, min(100, self.hp + random.randint(-1, 1)))
 
     def _tick_rupture(self) -> None:
         self._phase = "!! RUPTURE"
@@ -167,7 +156,6 @@ class ScenarioState:
         self.bearings = _drift(self.bearings, 58, 0.5, 50, 70)
         self.cabin = _drift(self.cabin, 22.0, 0.2, 20, 24)
         self.bv = _drift(self.bv, 110, 0.5, 106, 114)
-        self.hp = max(30, self.hp - random.randint(3, 6))
 
     def _tick_standstill(self) -> None:
         self._phase = "STOP"
@@ -182,13 +170,12 @@ class ScenarioState:
         self.bearings = _approach(self.bearings, 30, 0.3)
         self.cabin = _drift(self.cabin, 22.0, 0.2, 20, 24)
         self.bv = _drift(self.bv, 110, 0.3, 108, 112)
-        self.hp = max(30, min(50, self.hp + random.randint(-1, 0)))
 
     def log(self, _t: int) -> str:
         return (
             f"{self._phase:12s}  spd={self.spd:5.1f}  "
             f"tm={self.tm:.1f}  tc={self.tc:.1f}  "
-            f"cur={self.traction_a:.0f}A  hp={self.hp}"
+            f"cur={self.traction_a:.0f}A"
         )
 
 
@@ -196,15 +183,10 @@ _state: ScenarioState | None = None
 
 
 async def _persist_payload(payload: dict[str, Any]) -> None:
-    from app.db.database import async_session_factory
-    from app.schemas.locomotive_ingress import LocomotiveElectricIngress
-    from app.services.locomotive_persist import persist_locomotive_ingress
-
     try:
         raw_json = json.dumps(payload, ensure_ascii=False, default=str)
         packet = LocomotiveElectricIngress.model_validate(payload)
-        async with async_session_factory() as session:
-            await persist_locomotive_ingress(session, packet, raw_json)
+        await finalize_locomotive_ingress_packet(packet, raw_json)
     except Exception:
         logger.exception("Simulator persist failed")
 
@@ -253,7 +235,5 @@ async def run_simulator() -> None:
             raw = json.dumps(payload, ensure_ascii=False, default=str)
             await rabbitmq_broker.publish_telemetry_raw(raw)
         else:
-            live_store.update(LOCOMOTIVE_ID, payload)
-            await dashboard_manager.broadcast(payload)
             await _persist_payload(payload)
         await asyncio.sleep(1.0)

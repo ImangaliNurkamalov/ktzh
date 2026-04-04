@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import random
 
-from _base import drift, approach, ch, health_status, run
+from _base import drift, approach, ch, run
 
 RUPTURE_TICK = 30
 
@@ -40,7 +40,6 @@ class State:
         self.oil_p = 3.5
         self.oil_t = 84.0
         self.cool_t = 84.0
-        self.hp = 95
         self.d_next = 125.0
         self.d_total = 925.0
         self._phase = "CRUISE"
@@ -67,7 +66,6 @@ class State:
         return {
             "locomotive_id": "TE33A-0154",
             "type": "diesel",
-            "health": {"index": self.hp, "status": health_status(self.hp)},
             "route_map": {
                 "next_point": "Караганда",
                 "end_point": "Алматы",
@@ -120,7 +118,6 @@ class State:
         self.oil_p = drift(self.oil_p, 3.5, 0.1, 3.0, 4.0)
         self.oil_t = drift(self.oil_t, 84, 0.5, 80, 88)
         self.cool_t = drift(self.cool_t, 84, 0.5, 80, 88)
-        self.hp = max(85, min(100, self.hp + random.randint(-1, 1)))
 
     def _tick_rupture(self) -> None:
         self._phase = "!! RUPTURE"
@@ -137,7 +134,6 @@ class State:
         self.bearings = drift(self.bearings, 58, 0.5, 50, 70)
         self.cabin = drift(self.cabin, 22.0, 0.2, 20, 24)
         self.bv = drift(self.bv, 110, 0.5, 106, 114)
-        self.hp = max(30, self.hp - random.randint(3, 6))
 
     def _tick_standstill(self) -> None:
         self._phase = "STOP"
@@ -154,13 +150,12 @@ class State:
         self.bearings = approach(self.bearings, 30, 0.3)
         self.cabin = drift(self.cabin, 22.0, 0.2, 20, 24)
         self.bv = drift(self.bv, 110, 0.3, 108, 112)
-        self.hp = max(30, min(50, self.hp + random.randint(-1, 0)))
 
     def log(self, _t: int) -> str:
         return (
             f"{self._phase:12s}  spd={self.spd:5.1f}  "
             f"tm={self.tm:.1f}  tc={self.tc:.1f}  "
-            f"rpm={self.rpm:.0f}  hp={self.hp}"
+            f"rpm={self.rpm:.0f}"
         )
 
 

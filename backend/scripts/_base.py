@@ -47,14 +47,6 @@ def ch(value, state: int = 0) -> dict:
     return {"value": value, "state": state}
 
 
-def health_status(idx: int) -> str:
-    if idx >= 85:
-        return "norm"
-    if idx >= 60:
-        return "warning"
-    return "critical"
-
-
 async def run(name: str, state, ws_url: str | None = None) -> None:
     """Connect to the locomotive WS endpoint and stream ticks until Ctrl-C."""
     if ws_url is None:

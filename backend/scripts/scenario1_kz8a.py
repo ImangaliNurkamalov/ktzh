@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import random
 
-from _base import drift, ch, health_status, run
+from _base import drift, ch, run
 
 SPIKE_PROBABILITY = 0.07
 
@@ -33,7 +33,6 @@ class State:
         self.cat_kv = 27.0
         self.traction_a = 220.0
         self.trans_t = 70.0
-        self.hp = 95
         self.d_next = 150.0
         self.d_total = 350.0
         self._spike_msg = ""
@@ -50,7 +49,6 @@ class State:
         self.cat_kv = drift(self.cat_kv, 27.0, 0.1, 26.8, 27.2)
         self.traction_a = drift(self.traction_a, 220, 15, 150, 300)
         self.trans_t = drift(self.trans_t, 70, 0.8, 65, 75)
-        self.hp = max(85, min(100, self.hp + random.randint(-1, 1)))
 
         km_s = self.spd / 3600
         self.d_next = max(0, round(self.d_next - km_s, 2))
@@ -72,7 +70,6 @@ class State:
         return {
             "locomotive_id": "KZ8A-0021",
             "type": "electric",
-            "health": {"index": self.hp, "status": health_status(self.hp)},
             "route_map": {
                 "next_point": "Шу",
                 "end_point": "Алматы",

@@ -18,7 +18,7 @@ from app.schemas.locomotive_ingress import (
     LocomotiveElectricIngress,
 )
 from app.schemas.telemetry import TelemetryPacket
-from app.services.health_service import compute_health
+from app.services.health_service import compute_health, compute_health_from_ingress
 from app.services.locomotive_persist import persist_locomotive_ingress
 from app.services.locomotive_transform import to_frontend_payload
 from app.services.processing_service import build_dashboard_payload
@@ -56,6 +56,32 @@ async def ws_locomotive(ws: WebSocket) -> None:
         logger.exception("Locomotive WS error")
 
 
+async def finalize_locomotive_ingress_packet(
+    packet: LocomotiveDieselIngress | LocomotiveElectricIngress,
+    raw_for_storage: str,
+) -> dict[str, Any]:
+    """После валидации ingress: считает health, обновляет live_store, WS, БД."""
+    from app.db.database import async_session_factory
+
+    h = compute_health_from_ingress(packet)
+    frontend = to_frontend_payload(
+        packet,
+        health_index=h.index,
+        health_status=h.status,
+    )
+    live_store.update(packet.locomotive_id, frontend)
+    await dashboard_manager.broadcast(frontend)
+    async with async_session_factory() as session:
+        await persist_locomotive_ingress(
+            session,
+            packet,
+            raw_for_storage,
+            health_index=h.index,
+            health_status_raw=h.status,
+        )
+    return frontend
+
+
 async def _process_raw_packet(raw: str) -> None:
     """Общая логика обработки одного JSON-пакета от борта."""
     data = json.loads(raw)
@@ -78,15 +104,7 @@ async def _process_raw_packet(raw: str) -> None:
         logger.warning("Validation failed: %s", exc.error_count())
         return
 
-    frontend = to_frontend_payload(packet)
-
-    live_store.update(loco_id, frontend)
-
-    await dashboard_manager.broadcast(frontend)
-
-    from app.db.database import async_session_factory
-    async with async_session_factory() as session:
-        await persist_locomotive_ingress(session, packet, raw)
+    await finalize_locomotive_ingress_packet(packet, raw)
 
 
 # ── REST-приём (оставлен для совместимости / тестирования) ────────
@@ -121,9 +139,20 @@ async def ingest_locomotive_telemetry(
     else:
         packet = LocomotiveDieselIngress.model_validate(data)
 
-    frontend = to_frontend_payload(packet)
+    h = compute_health_from_ingress(packet)
+    frontend = to_frontend_payload(
+        packet,
+        health_index=h.index,
+        health_status=h.status,
+    )
     live_store.update(packet.locomotive_id, frontend)
-    record = await persist_locomotive_ingress(session, packet, raw_ingress_json)
+    record = await persist_locomotive_ingress(
+        session,
+        packet,
+        raw_ingress_json,
+        health_index=h.index,
+        health_status_raw=h.status,
+    )
     await dashboard_manager.broadcast(frontend)
     return {"status": "ok", "record_id": record.id}
 

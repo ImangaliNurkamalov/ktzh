@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import random
 
-from _base import drift, ch, health_status, run
+from _base import drift, ch, run
 
 SENSOR_BREAK_TICK = 20
 NOISE_PROBABILITY = 0.30
@@ -38,7 +38,6 @@ class State:
         self.oil_p = 3.5
         self.oil_t = 84.0
         self.cool_t = 84.0
-        self.hp = 95
         self.d_next = 125.0
         self.d_total = 925.0
         self._broken = False
@@ -60,7 +59,6 @@ class State:
         self.oil_p = drift(self.oil_p, 3.5, 0.1, 3.0, 4.0)
         self.oil_t = drift(self.oil_t, 84, 0.5, 80, 88)
         self.cool_t = drift(self.cool_t, 84, 0.5, 80, 88)
-        self.hp = max(85, min(100, self.hp + random.randint(-1, 1)))
 
         km_s = self.spd / 3600
         self.d_next = max(0, round(self.d_next - km_s, 2))
@@ -83,7 +81,6 @@ class State:
         return {
             "locomotive_id": "TE33A-0154",
             "type": "diesel",
-            "health": {"index": self.hp, "status": health_status(self.hp)},
             "route_map": {
                 "next_point": "Караганда",
                 "end_point": "Алматы",
