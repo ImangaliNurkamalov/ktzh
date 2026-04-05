@@ -4,13 +4,18 @@ import { CabinKeyMetricsGrid } from './CabinKeyMetricsGrid'
 interface TelemetryCardsGridProps {
   message: LocomotiveTelemetry
   previousMessage: LocomotiveTelemetry
+  frontendNoisyKeys?: Set<string>
 }
 
 /** Полная сетка метрик кабины рядом с индексом здоровья (растягивается по высоте колонки). */
-export function TelemetryCardsGrid({ message, previousMessage }: TelemetryCardsGridProps) {
+export function TelemetryCardsGrid({ message, previousMessage, frontendNoisyKeys }: TelemetryCardsGridProps) {
   return (
     <div className="h-full min-h-0 w-full">
-      <CabinKeyMetricsGrid message={message} previousMessage={previousMessage} />
+      <CabinKeyMetricsGrid
+        message={message}
+        previousMessage={previousMessage}
+        frontendNoisyKeys={frontendNoisyKeys}
+      />
     </div>
   )
 }

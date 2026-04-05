@@ -7,7 +7,7 @@ export function telemetryTimestampSeconds(iso: string): number {
 export function formatIsoTime(iso: string): string {
   const ms = Date.parse(iso)
   if (!Number.isFinite(ms)) return '—'
-  return new Date(ms).toLocaleTimeString(undefined, {
+  return new Date(ms).toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { DashboardPage } from './pages/DashboardPage'
+import type { MockLocoVariant } from './mocks/sampleTelemetry'
 import { ThemeProvider } from './theme/ThemeContext'
 import { TelemetryProvider, type TelemetrySource } from './telemetry'
-import type { MockLocoVariant } from './mocks/sampleTelemetry'
 
 function App() {
   /** WebSocket only if URL is set; otherwise mock (demo-safe when backend is down). */

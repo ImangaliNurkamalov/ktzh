@@ -5,6 +5,26 @@ const OVERSPEED_MARGIN_KPH = 1
 
 const NODE_ROLES = ['start', 'last', 'next', 'end'] as const
 
+const NODE_ROLE_LABEL_RU: Record<(typeof NODE_ROLES)[number], string> = {
+  start: 'Начало',
+  last: 'Пройдено',
+  next: 'Далее',
+  end: 'Конечная',
+}
+
+/** Центры 4 узлов на линии (% ширины блока) — совпадают с колонками flex/grid. */
+const NODE_CENTER_PCT = [12.5, 37.5, 62.5, 87.5] as const
+
+/** Отступ маркера от центров узлов 2–3 (% ширины): левый сильнее — точка визуально правее «Пройдено». */
+const LEG_MARKER_LEFT_INSET_PCT = 8
+const LEG_MARKER_RIGHT_INSET_PCT = 2
+
+function telemetrySourceLabel(source: string): string {
+  if (source === 'mock') return 'мок'
+  if (source === 'websocket') return 'веб-сокет'
+  return source
+}
+
 function alongTrackT(lat: number, lng: number): number {
   const x = (lat * 1_000_000 + lng * 999_983) % 1_000_000
   return (x % 1000) / 1000
@@ -13,11 +33,15 @@ function alongTrackT(lat: number, lng: number): number {
 function nodeNames(message: LocomotiveTelemetry): [string, string, string, string] {
   const rm = message.route_map
   if (!rm) return ['—', '—', '—', '—']
+
+  const next = rm.next_point.trim() || 'Следующая'
+  const end = rm.end_point.trim() || 'Конечная'
+
   return [
-    rm.initial_point.trim() || '—',
-    rm.last_point.trim() || '—',
-    rm.next_point,
-    rm.end_point,
+    rm.initial_point.trim() || 'Астана',
+    rm.last_point.trim() || 'Балхаш',
+    next,
+    end,
   ]
 }
 
@@ -43,8 +67,15 @@ export function TrackRoutePanel({ message, source, historyPoints, maxHistoryAgeM
     ? Math.max(0, Math.min(1, rm.total_progress_percent / 100))
     : alongTrackT(lat, lng)
 
-  /** Маркер по шкале между крайними узлами (отступы совпадают с линией). */
-  const markerLeftPercent = 6.25 + progressT * 87.5
+  /**
+   * Маркер состава — на перегоне «Пройдено → Далее» (между 2-м и 3-м узлом),
+   * позиция по прогрессу вдоль этого отрезка (а не от самого начала линии).
+   */
+  const legStart = NODE_CENTER_PCT[1] + LEG_MARKER_LEFT_INSET_PCT
+  const legEnd = NODE_CENTER_PCT[2] - LEG_MARKER_RIGHT_INSET_PCT
+  const markerLeftPercent = rm
+    ? legStart + progressT * (legEnd - legStart)
+    : 6.25 + progressT * 87.5
 
   return (
     <section
@@ -55,7 +86,9 @@ export function TrackRoutePanel({ message, source, historyPoints, maxHistoryAgeM
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Маршрут</p>
           <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">
-            {rm ? `${rm.next_point} → ${rm.end_point}` : 'Участок (демо по координатам)'}
+            {rm
+              ? `${rm.initial_point.trim() || 'Астана'} → ${rm.end_point.trim() || 'Алматы'}`
+              : 'Участок (демо по координатам)'}
           </p>
         </div>
         {overspeed ? (
@@ -85,7 +118,7 @@ export function TrackRoutePanel({ message, source, historyPoints, maxHistoryAgeM
               ) : null}
             </div>
           ) : (
-            <p className="mt-2 text-sm text-slate-500">Нет данных маршрута (route_map)</p>
+            <p className="mt-2 text-sm text-slate-500">Нет данных маршрута</p>
           )}
         </div>
 
@@ -109,7 +142,6 @@ export function TrackRoutePanel({ message, source, historyPoints, maxHistoryAgeM
       <div className="relative mt-10 px-1">
         <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Линия пути</p>
         <div className="relative">
-          {/* Одна полоса: линия и все точки по вертикальному центру */}
           <div className="relative h-10 w-full">
             <div
               className="pointer-events-none absolute left-[6.25%] right-[6.25%] top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-slate-500/50 dark:bg-slate-600"
@@ -139,7 +171,9 @@ export function TrackRoutePanel({ message, source, historyPoints, maxHistoryAgeM
           <div className="mt-3 grid grid-cols-4 gap-1">
             {NODE_ROLES.map((role, i) => (
               <div key={`${role}-label`} className="flex flex-col items-center text-center">
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500">{role}</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                  {NODE_ROLE_LABEL_RU[role]}
+                </span>
                 <span
                   className="mt-1 max-w-[min(100%,7rem)] truncate px-0.5 text-xs font-medium leading-tight text-slate-700 dark:text-slate-300"
                   title={names[i]}
@@ -155,7 +189,7 @@ export function TrackRoutePanel({ message, source, historyPoints, maxHistoryAgeM
       <p className="mt-8 border-t border-cabin-border pt-4 text-[10px] text-slate-500 dark:border-slate-800/80">
         <span className="font-mono text-slate-400">{message.type === 'diesel' ? 'ТЭ33А' : 'KZ8A'}</span>
         <span className="mx-1.5">·</span>
-        <span className="font-mono text-slate-400">{source}</span>
+        <span className="font-mono text-slate-400">{telemetrySourceLabel(source)}</span>
         <span className="mx-1.5">·</span>
         буфер <span className="font-mono text-slate-400">{historyPoints}</span> т. · ≈{maxHistoryAgeMin} мин
       </p>

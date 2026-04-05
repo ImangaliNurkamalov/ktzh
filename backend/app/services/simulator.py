@@ -19,6 +19,7 @@ import asyncio
 import copy
 import json
 import logging
+import math
 import random
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -34,6 +35,13 @@ logger = logging.getLogger("simulator")
 
 RUPTURE_TICK = 30
 LOCOMOTIVE_ID = "KZ8A-0021"
+
+
+def _eta_minutes_to_next(dist_km: float, speed_kph: float) -> int:
+    if dist_km <= 0:
+        return 0
+    mins = dist_km / max(speed_kph, 1e-6) * 60.0
+    return max(1, math.ceil(mins - 1e-12))
 
 
 def _drift(cur: float, tgt: float, noise: float, lo: float, hi: float) -> float:
@@ -85,7 +93,7 @@ class ScenarioState:
         km_s = self.spd / 3600
         self.d_next = max(0, round(self.d_next - km_s, 2))
         self.d_total = max(0, round(self.d_total - km_s, 2))
-        eta = int(self.d_next / max(self.spd, 1) * 60)
+        eta = _eta_minutes_to_next(self.d_next, self.spd)
 
         tm_state = 0
         if self.tm < 3.5:

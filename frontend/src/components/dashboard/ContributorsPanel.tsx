@@ -31,7 +31,7 @@ export function ContributorsPanel({ factors }: ContributorsPanelProps) {
           <p className="mt-0.5 text-sm font-medium text-slate-800 dark:text-slate-200">Топ‑5 по вкладу</p>
         </div>
         <span className="shrink-0 rounded bg-slate-200 px-2 py-0.5 font-mono text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-500">
-          impact &lt; 0
+          влияние &lt; 0
         </span>
       </div>
 

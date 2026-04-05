@@ -36,6 +36,13 @@ export interface LocomotiveAlert {
   /** Optional; if absent, UI may fall back to parent message timestamp. */
   at?: string
   action_hint?: string
+  /**
+   * Optional machine-readable kind from backend (e.g. `sensor_noise`).
+   * Frontend falls back to `message` keyword heuristics when absent.
+   */
+  code?: string
+  /** Optional grouping, e.g. `sensor` vs subsystem faults. */
+  category?: string
 }
 
 export interface TelemetryCoordinates {

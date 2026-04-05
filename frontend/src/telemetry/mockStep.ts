@@ -67,6 +67,14 @@ export function stepLocomotiveTelemetry(prev: LocomotiveTelemetry): LocomotiveTe
 
   const c = next.telemetry.common
   c.speed_actual = clamp(c.speed_actual + Math.sin(Date.now() / 4000) * 0.4 + noise(0.35), 40, 110)
+  // Occasional one-tick speed jumps so the dashboard’s rolling-window noise heuristic can fire (demo / mock only).
+  if (Math.random() < 0.2) {
+    c.speed_actual = clamp(
+      c.speed_actual + (Math.random() < 0.5 ? -1 : 1) * (14 + Math.random() * 18),
+      40,
+      110
+    )
+  }
   c.brakes.tm_pressure = clamp(c.brakes.tm_pressure + noise(0.03), 4.2, 5.5)
   c.board_voltage = clamp(c.board_voltage + noise(0.4), 102, 118)
 
@@ -77,13 +85,16 @@ export function stepLocomotiveTelemetry(prev: LocomotiveTelemetry): LocomotiveTe
     ps.fuel_consumption_lh = clamp(ps.fuel_consumption_lh + noise(8), 150, 260)
     ps.oil_pressure = clamp(ps.oil_pressure + noise(0.06), 2.0, 5.2)
     ps.oil_temp = clamp(ps.oil_temp + (c.speed_actual > 85 ? 0.05 : -0.02) + noise(0.15), 78, 102)
+    if (Math.random() < 0.2) {
+      ps.oil_temp = clamp(ps.oil_temp + 5.5 + Math.random() * 8, 78, 102)
+    }
     ps.coolant_temp = clamp(ps.coolant_temp + noise(0.12), 78, 98)
     next.health.index = clamp(
       Math.round(next.health.index + (ps.oil_temp > 95 ? -1 : 0) + noise(0.8)),
       45,
       99
     )
-    next.alerts = []
+    next.alerts = deepClone(prev.alerts)
     refreshDieselSensorStates(next)
     return next
   }
@@ -93,8 +104,11 @@ export function stepLocomotiveTelemetry(prev: LocomotiveTelemetry): LocomotiveTe
     ps.catenary_voltage_kv = clamp(ps.catenary_voltage_kv + noise(0.12), 23.5, 28.5)
     ps.traction_current_a = clamp(Math.round(ps.traction_current_a + noise(22)), 280, 560)
     ps.transformer_temp = clamp(ps.transformer_temp + noise(0.2), 58, 88)
+    if (Math.random() < 0.2) {
+      ps.transformer_temp = clamp(ps.transformer_temp + 5 + Math.random() * 9, 58, 88)
+    }
     next.health.index = clamp(Math.round(next.health.index + noise(0.4)), 80, 100)
-    next.alerts = []
+    next.alerts = deepClone(prev.alerts)
     refreshElectricSensorStates(next)
     return next
   }

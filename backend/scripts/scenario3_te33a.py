@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import random
 
-from _base import drift, approach, ch, run
+from _base import drift, approach, ch, eta_minutes_to_next, run
 
 RUPTURE_TICK = 30
 
@@ -56,7 +56,7 @@ class State:
         self.d_next = max(0, round(self.d_next - km_s, 2))
         self.d_total = max(0, round(self.d_total - km_s, 2))
         self.fuel_pct = max(0, round(self.fuel_pct - self.fuel_cons / 3600, 2))
-        eta = int(self.d_next / max(self.spd, 1) * 60)
+        eta = eta_minutes_to_next(self.d_next, self.spd)
 
         tm_state = 0
         if self.tm < 3.5:

@@ -21,8 +21,8 @@ export function DashboardHeader({
   trainId,
   locomotiveType,
   connection,
-  eyebrow = 'Digital twin · Cabin',
-  title = 'Locomotive telemetry',
+  eyebrow = 'Цифровой двойник · кабина',
+  title = 'Телеметрия локомотива',
 }: DashboardHeaderProps) {
   const { theme, toggleTheme } = useTheme()
 

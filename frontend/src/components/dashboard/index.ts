@@ -1,3 +1,4 @@
+export { AlertsPanel } from './AlertsPanel'
 export { CabinKeyMetricsGrid } from './CabinKeyMetricsGrid'
 export { CabinSpeedCard } from './CabinSpeedCard'
 export { CabinElectricalPanel } from './CabinElectricalPanel'

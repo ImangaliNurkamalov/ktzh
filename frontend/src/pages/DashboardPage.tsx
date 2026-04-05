@@ -1,10 +1,16 @@
+import { useMemo } from 'react'
 import {
+  AlertsPanel,
   CabinSpeedCard,
   DashboardHeader,
   HealthScoreCard,
   TelemetryCardsGrid,
   TrackRoutePanel,
 } from '../components/dashboard'
+import {
+  buildFrontendNoisyAlerts,
+  computeFrontendNoisySensorResult,
+} from '../lib/noisySensorDetection'
 import { MOCK_DIESEL_LOCOMOTIVE_ID, MOCK_ELECTRIC_LOCOMOTIVE_ID } from '../mocks/sampleTelemetry'
 import { useTelemetry } from '../telemetry'
 
@@ -26,14 +32,25 @@ export function DashboardPage() {
         <p className="text-sm font-medium text-slate-400">Ожидание телеметрии…</p>
         <p className="max-w-md text-xs text-slate-500">
           {source === 'websocket'
-            ? 'Подключите WebSocket (VITE_WS_URL). Сообщения hello / tick или сырой JSON локомотива.'
-            : 'Инициализация mock-потока.'}
+            ? 'Укажите WebSocket в VITE_WS_URL. Ожидаются сообщения hello / tick или сырой JSON локомотива.'
+            : 'Инициализация демо-потока (мок).'}
         </p>
       </div>
     )
   }
 
   const prev = previousMessage ?? latestMessage
+
+  const noisySensor = useMemo(
+    () => computeFrontendNoisySensorResult(history, latestMessage),
+    [history, latestMessage]
+  )
+  const mergedAlerts = useMemo(() => {
+    const synthetic = buildFrontendNoisyAlerts(noisySensor.metrics)
+    return [...synthetic, ...latestMessage.alerts]
+  }, [latestMessage.alerts, noisySensor.metrics])
+
+  const healthSensorNote = noisySensor.healthNotes[0]
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -45,7 +62,7 @@ export function DashboardPage() {
 
       <main className="flex flex-1 flex-col gap-4" aria-label="Кабина">
         {source === 'mock' ? (
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Выбор mock локомотива">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Выбор демо-локомотива (мок)">
             <MockLocoButton
               active={mockVariant === 'diesel'}
               label={MOCK_DIESEL_LOCOMOTIVE_ID}
@@ -64,16 +81,27 @@ export function DashboardPage() {
         */}
         <section className="grid gap-4 lg:grid-cols-12 lg:items-stretch">
           <div className="flex flex-col gap-4 lg:col-span-4 xl:col-span-4">
-            <HealthScoreCard health={latestMessage.health} variant="focus" />
+            <HealthScoreCard
+              health={latestMessage.health}
+              variant="focus"
+              sensorStabilityNote={healthSensorNote}
+            />
             <CabinSpeedCard
               actualKph={latestMessage.telemetry.common.speed_actual}
               targetKph={latestMessage.telemetry.common.speed_target}
+              speedSensorUnstable={noisySensor.noisyKeys.has('speed_actual')}
             />
           </div>
           <div className="flex min-h-0 lg:col-span-8 xl:col-span-8">
-            <TelemetryCardsGrid message={latestMessage} previousMessage={prev} />
+            <TelemetryCardsGrid
+              message={latestMessage}
+              previousMessage={prev}
+              frontendNoisyKeys={noisySensor.noisyKeys}
+            />
           </div>
         </section>
+
+        <AlertsPanel alerts={mergedAlerts} message={latestMessage} />
 
         <TrackRoutePanel
           message={latestMessage}

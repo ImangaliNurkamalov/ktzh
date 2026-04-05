@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import random
 import sys
@@ -45,6 +46,17 @@ def ch(value, state: int = 0) -> dict:
     if isinstance(value, float):
         value = round(value, 2)
     return {"value": value, "state": state}
+
+
+def eta_minutes_to_next(dist_km: float, speed_kph: float) -> int:
+    """
+    Минуты до следующей точки. Пока dist_km > 0, не показываем 0 из‑за int-обрезки
+    (иначе при < ~1,5 км при 90 км/ч получалось «0 мин»).
+    """
+    if dist_km <= 0:
+        return 0
+    mins = dist_km / max(speed_kph, 1e-6) * 60.0
+    return max(1, math.ceil(mins - 1e-12))
 
 
 async def run(name: str, state, ws_url: str | None = None) -> None:

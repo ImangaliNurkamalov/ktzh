@@ -7,7 +7,7 @@ export function formatIsoClock(iso: string): string {
 export function formatIsoDateTime(iso: string): string {
   const ms = Date.parse(iso)
   if (!Number.isFinite(ms)) return '—'
-  return new Date(ms).toLocaleString(undefined, {
+  return new Date(ms).toLocaleString('ru-RU', {
     month: 'short',
     day: '2-digit',
     hour: '2-digit',
@@ -18,7 +18,7 @@ export function formatIsoDateTime(iso: string): string {
 
 /** Epoch seconds (legacy helpers / charts). */
 export function formatEpochSeconds(t: number): string {
-  return new Date(t * 1000).toLocaleString(undefined, {
+  return new Date(t * 1000).toLocaleString('ru-RU', {
     month: 'short',
     day: '2-digit',
     hour: '2-digit',

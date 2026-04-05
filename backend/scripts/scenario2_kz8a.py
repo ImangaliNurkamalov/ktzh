@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import random
 
-from _base import drift, ch, run
+from _base import drift, ch, eta_minutes_to_next, run
 
 SENSOR_BREAK_TICK = 20
 NOISE_PROBABILITY = 0.30
@@ -58,7 +58,7 @@ class State:
         km_s = self.spd / 3600
         self.d_next = max(0, round(self.d_next - km_s, 2))
         self.d_total = max(0, round(self.d_total - km_s, 2))
-        eta = int(self.d_next / max(self.spd, 1) * 60)
+        eta = eta_minutes_to_next(self.d_next, self.spd)
 
         trans_t_raw = self.trans_t
         self._noisy_this_tick = False
