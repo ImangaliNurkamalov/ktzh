@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import dashboard, history, telemetry
+from app.api import dashboard, history, report, telemetry
 from app.core import rabbitmq as rabbitmq_broker
 from app.core.config import settings
 from app.db.database import init_db
@@ -42,6 +42,7 @@ app.add_middleware(
 app.include_router(telemetry.router)
 app.include_router(dashboard.router)
 app.include_router(history.router)
+app.include_router(report.router)
 
 
 @app.get("/health", tags=["system"])

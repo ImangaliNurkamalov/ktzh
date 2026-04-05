@@ -7,3 +7,4 @@ asyncpg>=0.30
 websockets>=14.0
 httpx>=0.28
 aio-pika>=9.5
+reportlab>=4.2
