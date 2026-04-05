@@ -52,9 +52,11 @@ interface HealthScoreCardProps {
   health: LocomotiveHealth
   /** `focus` — крупный индекс для левой колонки дашборда (без боковой сводки). */
   variant?: 'full' | 'focus'
+  /** Frontend noisy-sensor heuristic: warning copy only, does not change score band */
+  sensorStabilityNote?: string
 }
 
-export function HealthScoreCard({ health, variant = 'full' }: HealthScoreCardProps) {
+export function HealthScoreCard({ health, variant = 'full', sensorStabilityNote }: HealthScoreCardProps) {
   const band = getHealthBand(health.index)
   const palette = BAND_STYLES[band]
   const scoreColor = getHealthColor(health.index)
@@ -106,6 +108,15 @@ export function HealthScoreCard({ health, variant = 'full' }: HealthScoreCardPro
       {focus ? (
         <p className="relative z-[1] mt-4 text-xs leading-snug text-slate-600 dark:text-slate-400" role="note">
           {summary}
+        </p>
+      ) : null}
+
+      {sensorStabilityNote ? (
+        <p
+          className="relative z-[1] mt-3 rounded-lg border border-amber-500/35 bg-amber-500/[0.08] px-3 py-2 text-[11px] leading-snug text-amber-950/95 dark:border-amber-500/30 dark:bg-amber-500/[0.07] dark:text-amber-100/90"
+          role="status"
+        >
+          {sensorStabilityNote}
         </p>
       ) : null}
 

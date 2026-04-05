@@ -168,6 +168,16 @@ function parseAlerts(x: unknown, path: string): ParseResult<LocomotiveAlert[]> {
       if (!h.ok) return h
       alert.action_hint = h.value
     }
+    if (el.code !== undefined) {
+      const c = asString(el.code, `${path}[${i}].code`)
+      if (!c.ok) return c
+      alert.code = c.value
+    }
+    if (el.category !== undefined) {
+      const cat = asString(el.category, `${path}[${i}].category`)
+      if (!cat.ok) return cat
+      alert.category = cat.value
+    }
     out.push(alert)
   }
   return parseOk(out)

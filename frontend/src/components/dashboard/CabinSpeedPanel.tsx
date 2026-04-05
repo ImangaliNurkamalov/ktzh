@@ -12,7 +12,7 @@ export function CabinSpeedPanel({ message, previousMessage }: CabinSpeedPanelPro
   return (
     <TelemetryMetricCards
       sectionTitle="Скорость"
-      subtitle="telemetry.common — движение"
+      subtitle="Общая телеметрия · движение"
       rows={CABIN_SPEED_ROWS}
       current={message}
       previous={previous}

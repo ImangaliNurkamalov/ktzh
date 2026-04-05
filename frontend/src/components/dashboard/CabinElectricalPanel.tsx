@@ -1,3 +1,4 @@
+import { pantographLabelRu } from '../../lib/pantographLabel'
 import type { LocomotiveTelemetry } from '../../types'
 import { isElectricTelemetry } from '../../types'
 import { CABIN_BOARD_VOLTAGE_ROWS, previousForSameLoco } from './cabinMetricRows'
@@ -24,8 +25,8 @@ export function CabinElectricalPanel({ message, previousMessage }: CabinElectric
       {ps ? (
         <div className="rounded-xl border border-cabin-border bg-cabin-surface px-4 py-3">
           <p className="text-[11px] font-medium text-slate-500">Токоприемник</p>
-          <p className="mt-1 font-mono text-sm capitalize text-slate-800 dark:text-slate-200">
-            {String(ps.pantograph_status)}
+          <p className="mt-1 font-mono text-sm text-slate-800 dark:text-slate-200">
+            {pantographLabelRu(String(ps.pantograph_status))}
           </p>
         </div>
       ) : null}

@@ -10,9 +10,9 @@ const STYLES: Record<ConnectionStatus, string> = {
 }
 
 const LABELS: Record<ConnectionStatus, string> = {
-  connected: 'Connected',
-  reconnecting: 'Reconnecting',
-  disconnected: 'Disconnected',
+  connected: 'Подключено',
+  reconnecting: 'Переподключение…',
+  disconnected: 'Нет соединения',
 }
 
 interface ConnectionBadgeProps {

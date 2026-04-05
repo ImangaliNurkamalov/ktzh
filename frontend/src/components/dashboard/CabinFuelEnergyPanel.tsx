@@ -19,7 +19,7 @@ export function CabinFuelEnergyPanel({ message, previousMessage }: CabinFuelEner
     return (
       <TelemetryMetricCards
         sectionTitle="Топливо и энергия"
-        subtitle="ТЭ33А · diesel"
+        subtitle="ТЭ33А · дизель"
         rows={CABIN_DIESEL_FUEL_ENERGY_ROWS}
         current={message}
         previous={previous}

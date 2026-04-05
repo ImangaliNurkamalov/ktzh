@@ -72,6 +72,8 @@ class AlertSchema(BaseModel):
     level: Literal["info", "warning", "critical"]
     message: str
     value: float | str | None = None
+    code: str | None = None
+    category: str | None = None
 
 
 # ── Пакеты ────────────────────────────────────────────────────────

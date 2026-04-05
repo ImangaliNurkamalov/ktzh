@@ -93,7 +93,17 @@ export const MOCK_TE33A_SAMPLE: DieselLocomotiveTelemetry = {
     oil_temp: 1,
     coolant_temp: 0,
   },
-  alerts: [],
+  /** Демо сценарий 2: шум датчика масла (не обязательно поломка узла). */
+  alerts: [
+    {
+      id: 'demo-oil-sensor-noise',
+      level: 'warning',
+      code: 'sensor_noise',
+      category: 'sensor',
+      message:
+        'Высокий уровень шума датчика масла. Возможна неисправность сенсора.',
+    },
+  ],
 }
 
 /** Static sample — как обновлённый JSON KZ8A (координаты в моке — дефолт парсера, в API могут отсутствовать). */
@@ -125,7 +135,6 @@ export const MOCK_KZ8A_SAMPLE: ElectricLocomotiveTelemetry = {
       transformer_temp: 75.0,
     },
   },
-  alerts: [],
   sensor_states: {
     speed_actual: 0 as TelemetrySensorState,
     speed_target: 0,
@@ -142,6 +151,16 @@ export const MOCK_KZ8A_SAMPLE: ElectricLocomotiveTelemetry = {
     transformer_temp: 0,
     pantograph_status: 0,
   },
+  alerts: [
+    {
+      id: 'demo-transformer-sensor-noise',
+      level: 'warning',
+      code: 'sensor_noise',
+      category: 'sensor',
+      message:
+        'Высокий уровень шума датчика трансформатора. Возможна неисправность сенсора.',
+    },
+  ],
 }
 
 function clamp(n: number, lo: number, hi: number) {

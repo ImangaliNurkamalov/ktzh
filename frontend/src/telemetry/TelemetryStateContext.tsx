@@ -181,7 +181,7 @@ export function TelemetryProvider({
 
 export function useTelemetryStore() {
   const ctx = useContext(TelemetryContext)
-  if (!ctx) throw new Error('useTelemetryStore must be used within TelemetryProvider')
+  if (!ctx) throw new Error('useTelemetryStore: оберните дерево в TelemetryProvider')
   return ctx
 }
 
